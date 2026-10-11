@@ -1,0 +1,75 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Soft Depth Shadow for L glyph -->
+    <path
+        android:fillColor="#38001815"
+        android:pathData="M 34.6, 35.7 L 38.4, 35.7 A 3,3 0 0,1 41.4, 38.7 L 41.4, 66.3 A 3,3 0 0,0 44.4, 69.3 L 62.2, 69.3 A 3,3 0 0,1 65.2, 72.3 L 65.2, 74.7 A 3,3 0 0,1 62.2, 77.7 L 34.6, 77.7 A 3,3 0 0,1 31.6, 74.7 L 31.6, 38.7 A 3,3 0 0,1 34.6, 35.7 Z" />
+
+    <!-- Main Langobard "L" Glyph -->
+    <path
+        android:pathData="M 34.6, 33.7 L 38.4, 33.7 A 3,3 0 0,1 41.4, 36.7 L 41.4, 64.3 A 3,3 0 0,0 44.4, 67.3 L 62.2, 67.3 A 3,3 0 0,1 65.2, 70.3 L 65.2, 72.7 A 3,3 0 0,1 62.2, 75.7 L 34.6, 75.7 A 3,3 0 0,1 31.6, 72.7 L 31.6, 36.7 A 3,3 0 0,1 34.6, 33.7 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="31.6"
+                android:startY="33.7"
+                android:endX="65.2"
+                android:endY="75.7"
+                android:type="linear">
+                <item android:color="#FFFFFF" android:offset="0.0" />
+                <item android:color="#A7F3E8" android:offset="0.4" />
+                <item android:color="#73F7E5" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Accent Circle Shadow -->
+    <path
+        android:fillColor="#38001815"
+        android:pathData="M66.6,44.1m-9.8,0a9.8,9.8 0 1,0 19.6,0a9.8,9.8 0 1,0 -19.6,0" />
+
+    <!-- Accent Progression Badge (Ochre Amber Gold) -->
+    <path
+        android:pathData="M66.6,42.1m-9.8,0a9.8,9.8 0 1,0 19.6,0a9.8,9.8 0 1,0 -19.6,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="58"
+                android:startY="33"
+                android:endX="75"
+                android:endY="51"
+                android:type="linear">
+                <item android:color="#FFF1C2" android:offset="0.0" />
+                <item android:color="#FEC16A" android:offset="0.5" />
+                <item android:color="#E09612" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Upward Chevron / Arrow -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M 61.2, 44.0 L 66.6, 38.6 L 72.0, 44.0"
+        android:strokeColor="#5B3A00"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Subtle German Tricolor Micro-Ribbon -->
+    <!-- Black bar -->
+    <path
+        android:fillColor="#18181B"
+        android:pathData="M 48.0, 71.5 L 53.0, 71.5 L 53.0, 73.5 L 48.0, 73.5 Z" />
+    <!-- Red bar -->
+    <path
+        android:fillColor="#DC2626"
+        android:pathData="M 53.0, 71.5 L 58.0, 71.5 L 58.0, 73.5 L 53.0, 73.5 Z" />
+    <!-- Gold bar -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M 58.0, 71.5 L 63.0, 71.5 L 63.0, 73.5 L 58.0, 73.5 Z" />
+
+</vector>
