@@ -68,7 +68,7 @@ fun PracticeScreen() {
     var inputMode by remember { mutableStateOf(PracticeInputMode.TYPE_SYNTAX) }
     var typedCode by remember { mutableStateOf("") }
     var checkVerdict by remember { mutableStateOf<Boolean?>(null) }
-    var solvedCount by remember { mutableIntStateOf(0) }
+    val solvedIds = remember { mutableSetOf<String>() }
     var showHint by remember { mutableStateOf(false) }
 
     val currentChallenge = allChallenges[currentChallengeIndex]
@@ -125,7 +125,7 @@ fun PracticeScreen() {
                         color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f)
                     ) {
                         Text(
-                            text = "Solved: $solvedCount / ${allChallenges.size}",
+                            text = "Solved: ${solvedIds.size} / ${allChallenges.size}",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -470,7 +470,7 @@ fun PracticeScreen() {
 
                             checkVerdict = isMatch
                             if (isMatch) {
-                                solvedCount++
+                                solvedIds.add(currentChallenge.id)
                             }
                         },
                         shape = RoundedCornerShape(12.dp)
