@@ -32,9 +32,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -215,7 +215,7 @@ fun PracticeScreen() {
 
         // Mode Selector: Type Syntax vs Token Assembly (Langobard style)
         item {
-            TabRow(
+            PrimaryTabRow(
                 selectedTabIndex = if (inputMode == PracticeInputMode.TYPE_SYNTAX) 0 else 1,
                 containerColor = Color.Transparent
             ) {

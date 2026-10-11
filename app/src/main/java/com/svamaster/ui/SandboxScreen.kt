@@ -85,7 +85,7 @@ fun SandboxScreen() {
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedDropdown) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(),
+                        .menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable),
                     shape = RoundedCornerShape(14.dp)
                 )
 
