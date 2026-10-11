@@ -399,13 +399,28 @@ fun PracticeScreen() {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = if (checkVerdict == true) {
-                                "Expected: ${currentChallenge.targetSva}\n\n${currentChallenge.explanation}"
+                                currentChallenge.explanation
                             } else {
                                 "Try again or tap 'Show SVA Hint' below for canonical IEEE 1800 syntax."
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             lineHeight = 20.sp
                         )
+
+                        if (checkVerdict == true && currentChallenge.fullPropertyDefinition != null) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "Full SystemVerilog Declaration:",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            SvaCodeBlock(
+                                code = currentChallenge.fullPropertyDefinition +
+                                    (if (currentChallenge.assertionDirective != null) "\n" + currentChallenge.assertionDirective else "")
+                            )
+                        }
                     }
                 }
             }
@@ -428,7 +443,13 @@ fun PracticeScreen() {
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        SvaCodeBlock(code = currentChallenge.targetSva)
+                        SvaCodeBlock(
+                            code = if (currentChallenge.fullPropertyDefinition != null) {
+                                "${currentChallenge.fullPropertyDefinition}\n${currentChallenge.assertionDirective ?: ""}"
+                            } else {
+                                currentChallenge.targetSva
+                            }
+                        )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = currentChallenge.explanation,

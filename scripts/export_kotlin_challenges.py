@@ -33,6 +33,11 @@ for part_idx, chunk in enumerate(chunked):
         distractors_code = ", ".join([f'"{escape(d)}"' for d in item["distractors"]])
         acceptables_code = ", ".join([f'"{escape(a)}"' for a in item["acceptableAnswers"]])
 
+        prop_def_val = escape(item["fullPropertyDefinition"]).replace("\n", "\\n") if item.get("fullPropertyDefinition") else None
+        prop_def = f'"{prop_def_val}"' if prop_def_val else "null"
+        assert_dir_val = escape(item["assertionDirective"]).replace("\n", "\\n") if item.get("assertionDirective") else None
+        assert_dir = f'"{assert_dir_val}"' if assert_dir_val else "null"
+
         item_str = f"""        SvaPracticeChallenge(
             id = "{item['id']}",
             prompt = "{escape(item['prompt'])}",
@@ -42,7 +47,9 @@ for part_idx, chunk in enumerate(chunked):
             distractors = listOf({distractors_code}),
             explanation = "{escape(item['explanation'])}",
             category = SvaCategory.{item['category']},
-            difficulty = "{item['difficulty']}"
+            difficulty = "{item['difficulty']}",
+            fullPropertyDefinition = {prop_def},
+            assertionDirective = {assert_dir}
         ),"""
         code.append(item_str)
 

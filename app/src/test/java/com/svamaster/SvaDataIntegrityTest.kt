@@ -69,5 +69,12 @@ class SvaDataIntegrityTest {
             assertTrue("Acceptable answers must include target", chal.acceptableAnswers.isNotEmpty())
             assertFalse("Explanation must not be blank", chal.explanation.isBlank())
         }
+
+        // Test user's specific property p_valid_hold
+        val validHoldChal = challenges.find { it.targetSva.contains("valid && !ready") && it.targetSva.contains("\$stable(data)") }
+        assertNotNull("Must contain property p_valid_hold challenge", validHoldChal)
+        assertTrue(validHoldChal!!.fullPropertyDefinition!!.contains("property p_valid_hold;"))
+        assertTrue(validHoldChal.fullPropertyDefinition!!.contains("(valid && !ready) |=> (valid && \$stable(data));"))
+        assertTrue(validHoldChal.assertionDirective!!.contains("assert property (p_valid_hold);"))
     }
 }
