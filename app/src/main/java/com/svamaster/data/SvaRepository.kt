@@ -1,11 +1,25 @@
 package com.svamaster.data
 
+import com.svamaster.data.challenges.SvaChallengesPart0
+import com.svamaster.data.challenges.SvaChallengesPart1
+import com.svamaster.data.challenges.SvaChallengesPart2
+import com.svamaster.data.challenges.SvaChallengesPart3
+import com.svamaster.data.challenges.SvaChallengesPart4
 import com.svamaster.model.SvaCategory
 import com.svamaster.model.SvaItem
+import com.svamaster.model.SvaPracticeChallenge
 import com.svamaster.model.SvaQuizQuestion
 import com.svamaster.model.SvaSandboxSample
 
 object SvaRepository {
+
+    val challenges: List<SvaPracticeChallenge> by lazy {
+        SvaChallengesPart0.list +
+        SvaChallengesPart1.list +
+        SvaChallengesPart2.list +
+        SvaChallengesPart3.list +
+        SvaChallengesPart4.list
+    }
 
     val items: List<SvaItem> = listOf(
         // Section 1: Directives Overview

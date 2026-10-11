@@ -54,4 +54,20 @@ class SvaDataIntegrityTest {
         assertTrue(itemNames.any { it.contains("\$past") })
         assertTrue(itemNames.any { it.contains("\$onehot") })
     }
+
+    @Test
+    fun testPracticeChallengesIntegrity() {
+        val challenges = SvaRepository.challenges
+        assertEquals("Must generate exactly 150 practice challenges", 150, challenges.size)
+
+        val uniqueIds = mutableSetOf<String>()
+        for (chal in challenges) {
+            assertTrue("Challenge ID must be unique: ${chal.id}", uniqueIds.add(chal.id))
+            assertFalse("Prompt must not be blank", chal.prompt.isBlank())
+            assertFalse("Target SVA must not be blank", chal.targetSva.isBlank())
+            assertTrue("Tokens must not be empty", chal.tokens.isNotEmpty())
+            assertTrue("Acceptable answers must include target", chal.acceptableAnswers.isNotEmpty())
+            assertFalse("Explanation must not be blank", chal.explanation.isBlank())
+        }
+    }
 }

@@ -26,6 +26,7 @@ import com.svamaster.theme.SvaTheme
 import com.svamaster.theme.ThemeMode
 
 enum class SvaNavigationTab(val label: String, val icon: String) {
+    PRACTICE("Practice", "✍️"),
     CHEATSHEET("Cheatsheet", "📑"),
     REFERENCE("Reference", "📚"),
     SANDBOX("Sandbox", "⚡"),
@@ -35,7 +36,7 @@ enum class SvaNavigationTab(val label: String, val icon: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SvaMainApp() {
-    var currentTab by remember { mutableStateOf(SvaNavigationTab.CHEATSHEET) }
+    var currentTab by remember { mutableStateOf(SvaNavigationTab.PRACTICE) }
     var themeMode by remember { mutableStateOf(ThemeMode.DARK) }
 
     SvaTheme(themeMode = themeMode) {
@@ -86,6 +87,7 @@ fun SvaMainApp() {
             ) {
                 Crossfade(targetState = currentTab, label = "tab_fade") { tab ->
                     when (tab) {
+                        SvaNavigationTab.PRACTICE -> PracticeScreen()
                         SvaNavigationTab.CHEATSHEET -> CheatsheetScreen()
                         SvaNavigationTab.REFERENCE -> ReferenceScreen()
                         SvaNavigationTab.SANDBOX -> SandboxScreen()
