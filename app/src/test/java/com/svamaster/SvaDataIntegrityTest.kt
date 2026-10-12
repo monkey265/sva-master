@@ -58,7 +58,7 @@ class SvaDataIntegrityTest {
     @Test
     fun testPracticeChallengesIntegrity() {
         val challenges = SvaRepository.challenges
-        assertEquals("Must generate exactly 150 practice challenges", 150, challenges.size)
+        assertEquals("Must generate exactly 165 practice challenges", 165, challenges.size)
 
         val uniqueIds = mutableSetOf<String>()
         for (chal in challenges) {
@@ -87,6 +87,31 @@ class SvaDataIntegrityTest {
         assertTrue(fullDef!!.contains("property p_valid_hold;"))
         assertTrue(fullDef.contains("(valid && !ready) |=> (valid && \$stable(data));"))
         assertTrue(validHoldChal.assertionDirective!!.contains("assert property (p_valid_hold);"))
+    }
+
+    @Test
+    fun testBadgesIntegrity() {
+        val badges = SvaRepository.badges
+        assertEquals("Must have 10 verification mastery badges", 10, badges.size)
+        val uniqueIds = mutableSetOf<String>()
+        for (b in badges) {
+            assertTrue("Badge ID must be unique: ${b.id}", uniqueIds.add(b.id))
+            assertFalse("Title must not be blank", b.title.isBlank())
+            assertFalse("Description must not be blank", b.description.isBlank())
+            assertFalse("Icon must not be blank", b.icon.isBlank())
+            assertTrue("Target count must be > 0", b.targetCount > 0)
+        }
+    }
+
+    @Test
+    fun testProtocolPacksChallenges() {
+        val protocolChallenges = SvaRepository.challenges.filter { it.category == SvaCategory.PROTOCOL_PACKS }
+        assertEquals("Must have 15 protocol pack challenges", 15, protocolChallenges.size)
+        assertTrue(protocolChallenges.any { it.prompt.contains("AXI") })
+        assertTrue(protocolChallenges.any { it.prompt.contains("APB") })
+        assertTrue(protocolChallenges.any { it.prompt.contains("FIFO") })
+        assertTrue(protocolChallenges.any { it.prompt.contains("Skid Buffer") })
+        assertTrue(protocolChallenges.any { it.prompt.contains("Arbiter") })
     }
 
     private fun normalize(raw: String): String {

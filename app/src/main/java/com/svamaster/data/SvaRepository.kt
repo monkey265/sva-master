@@ -5,6 +5,8 @@ import com.svamaster.data.challenges.SvaChallengesPart1
 import com.svamaster.data.challenges.SvaChallengesPart2
 import com.svamaster.data.challenges.SvaChallengesPart3
 import com.svamaster.data.challenges.SvaChallengesPart4
+import com.svamaster.data.challenges.SvaProtocolChallenges
+import com.svamaster.model.SvaBadge
 import com.svamaster.model.SvaCategory
 import com.svamaster.model.SvaItem
 import com.svamaster.model.SvaPracticeChallenge
@@ -18,7 +20,8 @@ object SvaRepository {
         SvaChallengesPart1.list +
         SvaChallengesPart2.list +
         SvaChallengesPart3.list +
-        SvaChallengesPart4.list
+        SvaChallengesPart4.list +
+        SvaProtocolChallenges.list
     }
 
     val items: List<SvaItem> = listOf(
@@ -470,6 +473,199 @@ object SvaRepository {
                 "Use `!\$isunknown(bus)` at interfaces to trap reset propagation or uninitialized flops.",
                 "`\$onehot` is standard in one-hot state machine safety checks."
             )
+        ),
+
+        // Section: Protocol Packs
+        SvaItem(
+            id = "proto_axi4_stream",
+            category = SvaCategory.PROTOCOL_PACKS,
+            name = "AXI4-Stream Handshake Hold",
+            syntax = "(tvalid && !tready) |=> (tvalid && \$stable(tdata));",
+            summary = "Enforces that once TVALID is asserted, it cannot drop and TDATA must remain stable until TREADY is acknowledged.",
+            dynamicBehavior = "Fails immediately if sender changes data or drops valid before receiver acknowledges.",
+            formalBehavior = "Constrains or asserts master-slave interface adherence across all possible backpressure delays.",
+            fullExplanation = "The core AMBA AXI4-Stream specification dictates that once TVALID is asserted by the source, it must not be deasserted until the transfer finishes on a cycle when both TVALID and TREADY are high. Furthermore, payload data (TDATA, TKEEP, TUSER) must stay stable.",
+            codeExample = """
+                property p_axi_stream_hold;
+                  @(posedge aclk) disable iff (!aresetn)
+                  (tvalid && !tready) |=> (tvalid && ${'$'}stable(tdata));
+                endproperty
+                a_axi_hold: assert property (p_axi_stream_hold)
+                  else `uvm_error("AXIS", "Protocol violation: TVALID/TDATA changed before TREADY!");
+            """.trimIndent(),
+            waveDiagram = "aclk   : _|~|_|~|_|~|_|~|_\ntvalid : ___|~~~~~~~~~~|_\ntready : _________|~~~~|_\ntdata  : ___|===D0=====|_",
+            keyTips = listOf(
+                "Never allow master logic to depend combinatorially on TREADY to assert TVALID (breaks timing loops).",
+                "Applies equally to AXI4 full and AXI-Lite channels (AW, W, AR, R, B)."
+            )
+        ),
+        SvaItem(
+            id = "proto_apb4_transfer",
+            category = SvaCategory.PROTOCOL_PACKS,
+            name = "APB4 Two-Phase Transfer",
+            syntax = "(psel && !penable) |=> (psel && penable);",
+            summary = "Enforces APB protocol state progression from Setup phase (PSEL=1, PENABLE=0) to Access phase (PSEL=1, PENABLE=1).",
+            dynamicBehavior = "Detects illegal multi-cycle setup states or premature deassertions.",
+            formalBehavior = "Proves APB bridge FSM transitions without deadlock or skipped access cycles.",
+            fullExplanation = "ARM APB transfers start with the Setup phase where PSEL is high and PENABLE is low. In the following cycle, PENABLE must go high into the Access phase. During Access, PADDR and PWRITE must remain unchanged until PREADY goes high.",
+            codeExample = """
+                property p_apb_phases;
+                  @(posedge pclk) disable iff (!presetn)
+                  (psel && !penable) |=> (psel && penable && ${'$'}stable(paddr));
+                endproperty
+                a_apb_phase: assert property (p_apb_phases)
+                  else `uvm_error("APB", "Illegal APB transfer setup sequence!");
+            """.trimIndent(),
+            waveDiagram = "pclk    : _|~|_|~|_|~|_\npsel    : ___|~~~~~~~|_\npenable : _______|~~~|_\npready  : _______|~~~|_",
+            keyTips = listOf(
+                "PADDR and PWDATA must remain strictly stable during the entire access phase.",
+                "PENABLE must deassert in the cycle immediately following PREADY assertion."
+            )
+        ),
+        SvaItem(
+            id = "proto_fifo_invariants",
+            category = SvaCategory.PROTOCOL_PACKS,
+            name = "Synchronous FIFO Invariants",
+            syntax = "(fifo_full && !pop) |-> !push;  // No overflow",
+            summary = "Guarantees FIFO pointer integrity, preventing push on full and pop on empty.",
+            dynamicBehavior = "Flags illegal writes/reads before corrupting memory arrays or pointers.",
+            formalBehavior = "Exhaustively proves no overflow or underflow can occur under any valid interface traffic.",
+            fullExplanation = "Synchronous FIFOs require strict boundary invariants. Pushing when full without popping in the same cycle corrupts unread items. Popping when empty corrupts read pointers and returns invalid data.",
+            codeExample = """
+                property p_fifo_no_overflow;
+                  @(posedge clk) disable iff (!rst_n)
+                  (fifo_full && !pop) |-> !push;
+                endproperty
+                property p_fifo_no_underflow;
+                  @(posedge clk) disable iff (!rst_n)
+                  fifo_empty |-> !pop;
+                endproperty
+                a_no_overflow:  assert property (p_fifo_no_overflow);
+                a_no_underflow: assert property (p_fifo_no_underflow);
+            """.trimIndent(),
+            keyTips = listOf(
+                "For dual-clock asynchronous FIFOs, also verify that gray-coded pointers only toggle 1 bit per cycle.",
+                "Use almost_full and almost_empty flags to throttle upstream transmitters."
+            )
+        )
+    )
+
+    val badges: List<SvaBadge> = listOf(
+        SvaBadge(
+            id = "badge_first",
+            title = "First Assertion",
+            description = "Solve your very first SVA challenge",
+            icon = "🌱",
+            targetCount = 1,
+            getProgress = { solvedIds, _, _ -> solvedIds.size.coerceAtMost(1) },
+            isUnlocked = { solvedIds, _, _ -> solvedIds.isNotEmpty() }
+        ),
+        SvaBadge(
+            id = "badge_handshake",
+            title = "Handshake Guardian",
+            description = "Master 5 handshake or protocol assertions",
+            icon = "🤝",
+            targetCount = 5,
+            getProgress = { solvedIds, _, challenges ->
+                solvedIds.count { id ->
+                    val chal = challenges.find { it.id == id }
+                    chal?.category == SvaCategory.PROTOCOL_PACKS || chal?.targetSva?.contains("ready") == true
+                }.coerceAtMost(5)
+            },
+            isUnlocked = { solvedIds, _, challenges ->
+                solvedIds.count { id ->
+                    val chal = challenges.find { it.id == id }
+                    chal?.category == SvaCategory.PROTOCOL_PACKS || chal?.targetSva?.contains("ready") == true
+                } >= 5
+            }
+        ),
+        SvaBadge(
+            id = "badge_sequences",
+            title = "Sequence Architect",
+            description = "Solve 10 Sequence or Repetition challenges",
+            icon = "🔁",
+            targetCount = 10,
+            getProgress = { solvedIds, _, challenges ->
+                solvedIds.count { id -> challenges.find { it.id == id }?.category == SvaCategory.SEQUENCES }.coerceAtMost(10)
+            },
+            isUnlocked = { solvedIds, _, challenges ->
+                solvedIds.count { id -> challenges.find { it.id == id }?.category == SvaCategory.SEQUENCES } >= 10
+            }
+        ),
+        SvaBadge(
+            id = "badge_ltl",
+            title = "LTL Temporal Master",
+            description = "Solve 5 Linear Temporal Logic challenges (always, s_eventually, until)",
+            icon = "⏳",
+            targetCount = 5,
+            getProgress = { solvedIds, _, challenges ->
+                solvedIds.count { id -> challenges.find { it.id == id }?.category == SvaCategory.LTL }.coerceAtMost(5)
+            },
+            isUnlocked = { solvedIds, _, challenges ->
+                solvedIds.count { id -> challenges.find { it.id == id }?.category == SvaCategory.LTL } >= 5
+            }
+        ),
+        SvaBadge(
+            id = "badge_introspection",
+            title = "Introspection Pro",
+            description = "Solve 5 System Function (\$past, \$rose, \$onehot) assertions",
+            icon = "🔬",
+            targetCount = 5,
+            getProgress = { solvedIds, _, challenges ->
+                solvedIds.count { id -> challenges.find { it.id == id }?.category == SvaCategory.SYSTEM_FUNCTIONS }.coerceAtMost(5)
+            },
+            isUnlocked = { solvedIds, _, challenges ->
+                solvedIds.count { id -> challenges.find { it.id == id }?.category == SvaCategory.SYSTEM_FUNCTIONS } >= 5
+            }
+        ),
+        SvaBadge(
+            id = "badge_protocols",
+            title = "Bus Protocol Master",
+            description = "Solve 5 AXI4, APB4, or FIFO Protocol Pack challenges",
+            icon = "⚡",
+            targetCount = 5,
+            getProgress = { solvedIds, _, challenges ->
+                solvedIds.count { id -> challenges.find { it.id == id }?.category == SvaCategory.PROTOCOL_PACKS }.coerceAtMost(5)
+            },
+            isUnlocked = { solvedIds, _, challenges ->
+                solvedIds.count { id -> challenges.find { it.id == id }?.category == SvaCategory.PROTOCOL_PACKS } >= 5
+            }
+        ),
+        SvaBadge(
+            id = "badge_quiz_master",
+            title = "Quiz Ace",
+            description = "Score 5 or more points in the SVA Quiz",
+            icon = "🎯",
+            targetCount = 5,
+            getProgress = { _, quizScore, _ -> quizScore.coerceAtMost(5) },
+            isUnlocked = { _, quizScore, _ -> quizScore >= 5 }
+        ),
+        SvaBadge(
+            id = "badge_veteran_25",
+            title = "Verification Specialist",
+            description = "Solve 25+ total SVA assertions",
+            icon = "🛡️",
+            targetCount = 25,
+            getProgress = { solvedIds, _, _ -> solvedIds.size.coerceAtMost(25) },
+            isUnlocked = { solvedIds, _, _ -> solvedIds.size >= 25 }
+        ),
+        SvaBadge(
+            id = "badge_grandmaster_50",
+            title = "SVA Grandmaster",
+            description = "Solve 50+ total SVA assertions",
+            icon = "🌟",
+            targetCount = 50,
+            getProgress = { solvedIds, _, _ -> solvedIds.size.coerceAtMost(50) },
+            isUnlocked = { solvedIds, _, _ -> solvedIds.size >= 50 }
+        ),
+        SvaBadge(
+            id = "badge_centurion_100",
+            title = "Centurion",
+            description = "Solve 100+ total SVA assertions",
+            icon = "👑",
+            targetCount = 100,
+            getProgress = { solvedIds, _, _ -> solvedIds.size.coerceAtMost(100) },
+            isUnlocked = { solvedIds, _, _ -> solvedIds.size >= 100 }
         )
     )
 

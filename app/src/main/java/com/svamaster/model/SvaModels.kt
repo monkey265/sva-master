@@ -35,6 +35,11 @@ enum class SvaCategory(val title: String, val icon: String, val description: Str
         title = "Sampled Value Functions",
         icon = "🔬",
         description = "\$past, \$rose, \$fell, \$stable, \$onehot, \$countones, \$isunknown"
+    ),
+    PROTOCOL_PACKS(
+        title = "Protocol Packs",
+        icon = "⚡",
+        description = "AXI4, APB4, AHB5, FIFO, and Skid-Buffer interface assertions"
     )
 }
 
@@ -68,4 +73,14 @@ data class SvaSandboxSample(
     val code: String,
     val testVerdict: String,
     val explanation: String
+)
+
+data class SvaBadge(
+    val id: String,
+    val title: String,
+    val description: String,
+    val icon: String,
+    val targetCount: Int,
+    val getProgress: (solvedIds: Set<String>, quizScore: Int, challenges: List<SvaPracticeChallenge>) -> Int,
+    val isUnlocked: (solvedIds: Set<String>, quizScore: Int, challenges: List<SvaPracticeChallenge>) -> Boolean
 )

@@ -22,8 +22,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -58,10 +61,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -69,6 +74,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.zIndex
 import com.svamaster.data.SvaRepository
+import com.svamaster.model.SvaBadge
+import com.svamaster.model.SvaCategory
 import com.svamaster.model.SvaPracticeChallenge
 import com.svamaster.ui.components.SvaCodeBlock
 
@@ -81,22 +88,52 @@ enum class PracticeInputMode {
 @Composable
 fun PracticeScreen() {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val progressManager = remember(context) { com.svamaster.data.SvaProgressManager.getInstance(context) }
     val allChallenges = remember { SvaRepository.challenges }
+    val badges = remember { SvaRepository.badges }
     val currentChallengeIndex by progressManager.currentChallengeIndex.collectAsState()
     val solvedIds by progressManager.solvedIds.collectAsState()
+    val quizScore by progressManager.quizScore.collectAsState()
 
     var inputMode by remember { mutableStateOf(PracticeInputMode.TYPE_SYNTAX) }
     var typedCode by remember { mutableStateOf("") }
     var checkVerdict by remember { mutableStateOf<Boolean?>(null) }
     var showHint by remember { mutableStateOf(false) }
 
+    var selectedCategoryFilter by remember { mutableStateOf<SvaCategory?>(null) }
+    var filterUnsolvedOnly by remember { mutableStateOf(false) }
+    var showJumpDialog by remember { mutableStateOf(false) }
+    var showBadgesDialog by remember { mutableStateOf(false) }
+
+    val filteredChallenges = remember(allChallenges, selectedCategoryFilter, filterUnsolvedOnly, solvedIds) {
+        var list = allChallenges
+        if (selectedCategoryFilter != null) {
+            list = list.filter { it.category == selectedCategoryFilter }
+        }
+        if (filterUnsolvedOnly) {
+            val unsolved = list.filter { !solvedIds.contains(it.id) }
+            if (unsolved.isNotEmpty()) {
+                list = unsolved
+            }
+        }
+        list
+    }
+
     val safeIndex = currentChallengeIndex.coerceIn(0, (allChallenges.size - 1).coerceAtLeast(0))
-    val currentChallenge = allChallenges[safeIndex]
+    val currentFilteredIndex = remember(filteredChallenges, safeIndex) {
+        val found = filteredChallenges.indexOfFirst { it.id == allChallenges[safeIndex].id }
+        if (found >= 0) found else 0
+    }
+    val currentChallenge = filteredChallenges.getOrElse(currentFilteredIndex) { allChallenges[safeIndex] }
+
+    val unlockedBadgesCount = remember(solvedIds, quizScore, allChallenges) {
+        badges.count { it.isUnlocked(solvedIds, quizScore, allChallenges) }
+    }
 
     // Token Assembly State
-    val selectedTokens = remember(currentChallengeIndex) { mutableStateListOf<Pair<Int, String>>() }
-    val poolTokens = remember(currentChallengeIndex, currentChallenge) {
+    val selectedTokens = remember(currentChallenge.id) { mutableStateListOf<Pair<Int, String>>() }
+    val poolTokens = remember(currentChallenge.id) {
         val combined = (currentChallenge.tokens + currentChallenge.distractors).shuffled()
         mutableStateListOf<Pair<Int, String>>().apply {
             combined.forEachIndexed { i, token -> add(Pair(i, token)) }
@@ -108,7 +145,7 @@ fun PracticeScreen() {
     var draggingToken by remember { mutableStateOf<Pair<Int, String>?>(null) }
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
     var targetDropIndex by remember { mutableIntStateOf(-1) }
-    val tileCoordinates = remember(currentChallengeIndex) { mutableStateMapOf<Int, Rect>() }
+    val tileCoordinates = remember(currentChallenge.id) { mutableStateMapOf<Int, Rect>() }
 
     val onDragUpdate: (Pair<Int, String>, Offset) -> Unit = { token, amount ->
         dragOffset += amount
@@ -129,8 +166,9 @@ fun PracticeScreen() {
                     }
                 }
             }
-            if (closestIdx != -1) {
+            if (closestIdx != -1 && closestIdx != targetDropIndex) {
                 targetDropIndex = closestIdx
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             }
         }
     }
@@ -143,6 +181,7 @@ fun PracticeScreen() {
                 val item = selectedTokens.removeAt(fromIdx)
                 selectedTokens.add(targetDropIndex, item)
                 checkVerdict = null
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             }
         }
         draggingToken = null
@@ -162,13 +201,16 @@ fun PracticeScreen() {
     ) {
         // Progress & Stats Header
         item {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.primaryContainer,
@@ -176,7 +218,7 @@ fun PracticeScreen() {
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = "${safeIndex + 1}",
+                                    text = "${allChallenges.indexOfFirst { it.id == currentChallenge.id } + 1}",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -184,35 +226,152 @@ fun PracticeScreen() {
                             }
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Challenge ${safeIndex + 1} of ${allChallenges.size}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Column {
+                            Text(
+                                text = "Challenge ${currentFilteredIndex + 1} of ${filteredChallenges.size}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (selectedCategoryFilter != null || filterUnsolvedOnly) {
+                                Text(
+                                    text = "${selectedCategoryFilter?.title ?: "Unsolved"} Filter Active",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                     }
 
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f)
-                    ) {
-                        Text(
-                            text = "Solved: ${solvedIds.size} / ${allChallenges.size}",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
+                            modifier = Modifier.clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                showBadgesDialog = true
+                            }
+                        ) {
+                            Text(
+                                text = "🏆 $unlockedBadgesCount/${badges.size}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                showJumpDialog = true
+                            }
+                        ) {
+                            Text(
+                                text = "🔍 Jump",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
-                    progress = { (safeIndex + 1).toFloat() / allChallenges.size.toFloat() },
+                    progress = { (solvedIds.size.toFloat() / allChallenges.size.toFloat()).coerceIn(0f, 1f) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp))
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Total Solved: ${solvedIds.size} / ${allChallenges.size}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "${(solvedIds.size * 100) / allChallenges.size}% Mastery",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+
+        // Category & Filter Picker Chips Row
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 2.dp)
+            ) {
+                item {
+                    FilterChip(
+                        selected = selectedCategoryFilter == null && !filterUnsolvedOnly,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            selectedCategoryFilter = null
+                            filterUnsolvedOnly = false
+                        },
+                        label = { Text("All (${allChallenges.size})") }
+                    )
+                }
+
+                item {
+                    val unsolvedCount = allChallenges.count { !solvedIds.contains(it.id) }
+                    FilterChip(
+                        selected = filterUnsolvedOnly,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            filterUnsolvedOnly = !filterUnsolvedOnly
+                            if (filterUnsolvedOnly) {
+                                val firstUnsolved = allChallenges.firstOrNull { !solvedIds.contains(it.id) }
+                                if (firstUnsolved != null) {
+                                    val idx = allChallenges.indexOfFirst { it.id == firstUnsolved.id }
+                                    progressManager.setCurrentChallengeIndex(idx)
+                                }
+                            }
+                        },
+                        label = { Text("⭐ Unsolved ($unsolvedCount)") }
+                    )
+                }
+
+                items(SvaCategory.entries) { category ->
+                    val count = allChallenges.count { it.category == category }
+                    FilterChip(
+                        selected = selectedCategoryFilter == category && !filterUnsolvedOnly,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            filterUnsolvedOnly = false
+                            if (selectedCategoryFilter == category) {
+                                selectedCategoryFilter = null
+                            } else {
+                                selectedCategoryFilter = category
+                                if (currentChallenge.category != category) {
+                                    val firstInCat = allChallenges.firstOrNull { it.category == category }
+                                    if (firstInCat != null) {
+                                        val idx = allChallenges.indexOfFirst { it.id == firstInCat.id }
+                                        progressManager.setCurrentChallengeIndex(idx)
+                                        typedCode = ""
+                                        checkVerdict = null
+                                        showHint = false
+                                        draggingToken = null
+                                        dragOffset = Offset.Zero
+                                        targetDropIndex = -1
+                                    }
+                                }
+                            }
+                        },
+                        label = { Text("${category.icon} ${category.title} ($count)") }
+                    )
+                }
             }
         }
 
@@ -439,6 +598,7 @@ fun PracticeScreen() {
                                                     .pointerInput(tokenPair.first) {
                                                         detectDragGesturesAfterLongPress(
                                                             onDragStart = {
+                                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                                 draggingToken = tokenPair
                                                                 dragOffset = Offset.Zero
                                                                 targetDropIndex = selectedTokens.indexOf(tokenPair)
@@ -467,6 +627,7 @@ fun PracticeScreen() {
                                                             .pointerInput(tokenPair.first) {
                                                                 detectDragGestures(
                                                                     onDragStart = {
+                                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                                         draggingToken = tokenPair
                                                                         dragOffset = Offset.Zero
                                                                         targetDropIndex = selectedTokens.indexOf(tokenPair)
@@ -513,6 +674,7 @@ fun PracticeScreen() {
                                                             Box(
                                                                 modifier = Modifier
                                                                     .clickable {
+                                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                                         val item = selectedTokens.removeAt(index)
                                                                         selectedTokens.add(index - 1, item)
                                                                         checkVerdict = null
@@ -534,6 +696,7 @@ fun PracticeScreen() {
                                                             Box(
                                                                 modifier = Modifier
                                                                     .clickable {
+                                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                                         val item = selectedTokens.removeAt(index)
                                                                         selectedTokens.add(index + 1, item)
                                                                         checkVerdict = null
@@ -557,6 +720,7 @@ fun PracticeScreen() {
                                                         modifier = Modifier
                                                             .clickable {
                                                                 if (checkVerdict != true) {
+                                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                                     selectedTokens.remove(tokenPair)
                                                                     poolTokens.add(tokenPair)
                                                                     tileCoordinates.remove(tokenPair.first)
@@ -604,6 +768,7 @@ fun PracticeScreen() {
                                     border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant),
                                     modifier = Modifier.clickable {
                                         if (checkVerdict != true) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             poolTokens.remove(tokenPair)
                                             selectedTokens.add(tokenPair)
                                             checkVerdict = null
@@ -700,7 +865,10 @@ fun PracticeScreen() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     OutlinedButton(
-                        onClick = { showHint = !showHint },
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showHint = !showHint
+                        },
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(if (showHint) "Hide Hint" else "💡 Hint")
@@ -721,7 +889,10 @@ fun PracticeScreen() {
 
                             checkVerdict = isMatch
                             if (isMatch) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 progressManager.markChallengeSolved(currentChallenge.id)
+                            } else {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             }
                         },
                         shape = RoundedCornerShape(12.dp)
@@ -736,7 +907,10 @@ fun PracticeScreen() {
                 ) {
                     OutlinedButton(
                         onClick = {
-                            val prevIndex = if (safeIndex > 0) safeIndex - 1 else allChallenges.size - 1
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            val prevFilteredIndex = if (currentFilteredIndex > 0) currentFilteredIndex - 1 else filteredChallenges.lastIndex
+                            val prevChal = filteredChallenges[prevFilteredIndex]
+                            val prevIndex = allChallenges.indexOfFirst { it.id == prevChal.id }
                             progressManager.setCurrentChallengeIndex(prevIndex)
                             typedCode = ""
                             checkVerdict = null
@@ -753,11 +927,10 @@ fun PracticeScreen() {
 
                     Button(
                         onClick = {
-                            val nextIndex = if (safeIndex < allChallenges.size - 1) {
-                                safeIndex + 1
-                            } else {
-                                0
-                            }
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            val nextFilteredIndex = (currentFilteredIndex + 1) % filteredChallenges.size
+                            val nextChal = filteredChallenges[nextFilteredIndex]
+                            val nextIndex = allChallenges.indexOfFirst { it.id == nextChal.id }
                             progressManager.setCurrentChallengeIndex(nextIndex)
                             typedCode = ""
                             checkVerdict = null
@@ -777,6 +950,281 @@ fun PracticeScreen() {
                 }
             }
         }
+    }
+
+    // Modal: Jump to Challenge Navigator
+    if (showJumpDialog) {
+        AlertDialog(
+            onDismissRequest = { showJumpDialog = false },
+            title = {
+                Text(
+                    text = "🔍 Jump to Challenge",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Showing ${filteredChallenges.size} challenges in active filter:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 380.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredChallenges) { challenge ->
+                            val globalIndex = allChallenges.indexOfFirst { it.id == challenge.id }
+                            val isSolved = solvedIds.contains(challenge.id)
+                            val isCurrent = challenge.id == currentChallenge.id
+
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = when {
+                                    isCurrent -> MaterialTheme.colorScheme.primaryContainer
+                                    isSolved -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    else -> MaterialTheme.colorScheme.surface
+                                },
+                                border = BorderStroke(
+                                    if (isCurrent) 2.dp else 1.dp,
+                                    if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        progressManager.setCurrentChallengeIndex(globalIndex)
+                                        typedCode = ""
+                                        checkVerdict = null
+                                        showHint = false
+                                        draggingToken = null
+                                        dragOffset = Offset.Zero
+                                        targetDropIndex = -1
+                                        showJumpDialog = false
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = "#${globalIndex + 1}",
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.width(36.dp)
+                                        )
+                                        Text(
+                                            text = challenge.category.icon,
+                                            fontSize = 14.sp,
+                                            modifier = Modifier.padding(end = 6.dp)
+                                        )
+                                        Column {
+                                            Text(
+                                                text = challenge.prompt,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                                maxLines = 1,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = challenge.targetSva,
+                                                fontFamily = FontFamily.Monospace,
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.outline,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+
+                                    if (isSolved) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = Color(0xFF4CAF50).copy(alpha = 0.2f),
+                                            modifier = Modifier.size(22.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    text = "✓",
+                                                    fontSize = 12.sp,
+                                                    color = Color(0xFF2E7D32),
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showJumpDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // Modal: Badges & Mastery Dialog
+    if (showBadgesDialog) {
+        AlertDialog(
+            onDismissRequest = { showBadgesDialog = false },
+            title = {
+                Text(
+                    text = "🏆 Verification Mastery",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "$unlockedBadgesCount of ${badges.size} Badges Unlocked",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Earn badges by solving assertions across categories and acing quizzes.",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 380.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(badges) { badge ->
+                            val isUnlocked = badge.isUnlocked(solvedIds, quizScore, allChallenges)
+                            val progress = badge.getProgress(solvedIds, quizScore, allChallenges)
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isUnlocked)
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isUnlocked) Color(0xFFFFB300) else MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isUnlocked) Color(0xFFFFE082) else MaterialTheme.colorScheme.surfaceVariant,
+                                        modifier = Modifier.size(42.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = badge.icon,
+                                                fontSize = 20.sp
+                                            )
+                                        }
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = badge.title,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = if (isUnlocked) Color(0xFF4CAF50).copy(alpha = 0.2f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                            ) {
+                                                Text(
+                                                    text = if (isUnlocked) "UNLOCKED" else "LOCKED",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 9.sp,
+                                                    color = if (isUnlocked) Color(0xFF2E7D32) else MaterialTheme.colorScheme.outline,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = badge.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            LinearProgressIndicator(
+                                                progress = { (progress.toFloat() / badge.targetCount.toFloat()).coerceIn(0f, 1f) },
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(6.dp)
+                                                    .clip(RoundedCornerShape(3.dp)),
+                                                color = if (isUnlocked) Color(0xFFFFB300) else MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = "$progress / ${badge.targetCount}",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBadgesDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 }
 
