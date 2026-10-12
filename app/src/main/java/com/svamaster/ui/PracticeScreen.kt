@@ -37,6 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -45,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -63,15 +65,19 @@ enum class PracticeInputMode {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PracticeScreen() {
+    val context = LocalContext.current
+    val progressManager = remember(context) { com.svamaster.data.SvaProgressManager.getInstance(context) }
     val allChallenges = remember { SvaRepository.challenges }
-    var currentChallengeIndex by remember { mutableIntStateOf(0) }
+    val currentChallengeIndex by progressManager.currentChallengeIndex.collectAsState()
+    val solvedIds by progressManager.solvedIds.collectAsState()
+
     var inputMode by remember { mutableStateOf(PracticeInputMode.TYPE_SYNTAX) }
     var typedCode by remember { mutableStateOf("") }
     var checkVerdict by remember { mutableStateOf<Boolean?>(null) }
-    val solvedIds = remember { mutableSetOf<String>() }
     var showHint by remember { mutableStateOf(false) }
 
-    val currentChallenge = allChallenges[currentChallengeIndex]
+    val safeIndex = currentChallengeIndex.coerceIn(0, (allChallenges.size - 1).coerceAtLeast(0))
+    val currentChallenge = allChallenges[safeIndex]
 
     // Token Assembly State
     val selectedTokens = remember(currentChallengeIndex) { mutableStateListOf<Pair<Int, String>>() }
@@ -399,34 +405,19 @@ fun PracticeScreen() {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = if (checkVerdict == true) {
-                                currentChallenge.explanation
+                                "Canonical Assertion: ${currentChallenge.targetSva}\n\n${currentChallenge.explanation}"
                             } else {
-                                "Try again or tap 'Show SVA Hint' below for canonical IEEE 1800 syntax."
+                                "Try again or tap 'Show SVA Hint' below for canonical short SVA syntax."
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             lineHeight = 20.sp
                         )
-
-                        if (checkVerdict == true && currentChallenge.fullPropertyDefinition != null) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = "Full SystemVerilog Declaration:",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            SvaCodeBlock(
-                                code = currentChallenge.fullPropertyDefinition +
-                                    (if (currentChallenge.assertionDirective != null) "\n" + currentChallenge.assertionDirective else "")
-                            )
-                        }
                     }
                 }
             }
         }
 
-        // Canonical Hint
+        // Canonical Hint (Short assert expression)
         item {
             AnimatedVisibility(visible = showHint) {
                 Card(
@@ -437,19 +428,13 @@ fun PracticeScreen() {
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
-                            text = "💡 Canonical SVA Solution:",
+                            text = "💡 Short SVA Syntax:",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        SvaCodeBlock(
-                            code = if (currentChallenge.fullPropertyDefinition != null) {
-                                "${currentChallenge.fullPropertyDefinition}\n${currentChallenge.assertionDirective ?: ""}"
-                            } else {
-                                currentChallenge.targetSva
-                            }
-                        )
+                        SvaCodeBlock(code = currentChallenge.targetSva)
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = currentChallenge.explanation,
@@ -491,7 +476,7 @@ fun PracticeScreen() {
 
                             checkVerdict = isMatch
                             if (isMatch) {
-                                solvedIds.add(currentChallenge.id)
+                                progressManager.markChallengeSolved(currentChallenge.id)
                             }
                         },
                         shape = RoundedCornerShape(12.dp)
@@ -501,11 +486,12 @@ fun PracticeScreen() {
 
                     Button(
                         onClick = {
-                            if (currentChallengeIndex < allChallenges.size - 1) {
-                                currentChallengeIndex++
+                            val nextIndex = if (safeIndex < allChallenges.size - 1) {
+                                safeIndex + 1
                             } else {
-                                currentChallengeIndex = 0
+                                0
                             }
+                            progressManager.setCurrentChallengeIndex(nextIndex)
                             typedCode = ""
                             checkVerdict = null
                             showHint = false
