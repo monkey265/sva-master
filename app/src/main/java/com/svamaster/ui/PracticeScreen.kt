@@ -77,7 +77,9 @@ import com.svamaster.data.SvaRepository
 import com.svamaster.model.SvaBadge
 import com.svamaster.model.SvaCategory
 import com.svamaster.model.SvaPracticeChallenge
+import com.svamaster.model.SvaWaveformScenarios
 import com.svamaster.ui.components.SvaCodeBlock
+import com.svamaster.ui.components.SvaWaveformVisualizer
 
 enum class PracticeInputMode {
     TYPE_SYNTAX,
@@ -105,6 +107,7 @@ fun PracticeScreen() {
     var filterUnsolvedOnly by remember { mutableStateOf(false) }
     var showJumpDialog by remember { mutableStateOf(false) }
     var showBadgesDialog by remember { mutableStateOf(false) }
+    var showWaveformDialog by remember { mutableStateOf(false) }
 
     val filteredChallenges = remember(allChallenges, selectedCategoryFilter, filterUnsolvedOnly, solvedIds) {
         var list = allChallenges
@@ -129,6 +132,27 @@ fun PracticeScreen() {
 
     val unlockedBadgesCount = remember(solvedIds, quizScore, allChallenges) {
         badges.count { it.isUnlocked(solvedIds, quizScore, allChallenges) }
+    }
+
+    val matchingWaveformScenario = remember(currentChallenge) {
+        when {
+            currentChallenge.targetSva.contains("tvalid") || currentChallenge.prompt.contains("AXI") ->
+                SvaWaveformScenarios.all.find { it.id == "wave_axi_stream_hold" }
+            currentChallenge.targetSva.contains("psel") || currentChallenge.prompt.contains("APB") ->
+                SvaWaveformScenarios.all.find { it.id == "wave_apb4_transfer" }
+            currentChallenge.targetSva.contains("fifo") || currentChallenge.prompt.contains("FIFO") ->
+                SvaWaveformScenarios.all.find { it.id == "wave_fifo_overflow" }
+            currentChallenge.targetSva.contains("\$onehot") || currentChallenge.prompt.contains("Arbiter") ->
+                SvaWaveformScenarios.all.find { it.id == "wave_onehot_arb" }
+            currentChallenge.targetSva.contains("[*") ->
+                SvaWaveformScenarios.all.find { it.id == "wave_repetition" }
+            currentChallenge.targetSva.contains("|=>") ->
+                SvaWaveformScenarios.all.find { it.id == "wave_non_overlapping" }
+            currentChallenge.targetSva.contains("##[") ->
+                SvaWaveformScenarios.all.find { it.id == "wave_handshake_bounded" }
+            else ->
+                SvaWaveformScenarios.all.find { it.id == "wave_overlapping" }
+        } ?: SvaWaveformScenarios.all.first()
     }
 
     // Token Assembly State
@@ -864,14 +888,26 @@ fun PracticeScreen() {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            showHint = !showHint
-                        },
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(if (showHint) "Hide Hint" else "💡 Hint")
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                showHint = !showHint
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(if (showHint) "Hide Hint" else "💡 Hint")
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                showWaveformDialog = true
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("📈 Waveform")
+                        }
                     }
 
                     Button(
@@ -1221,6 +1257,36 @@ fun PracticeScreen() {
             },
             confirmButton = {
                 TextButton(onClick = { showBadgesDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // Modal: Interactive Timing Waveform Visualizer
+    if (showWaveformDialog) {
+        AlertDialog(
+            onDismissRequest = { showWaveformDialog = false },
+            title = {
+                Text(
+                    text = "📈 Interactive Timing Waveform",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Live timing trace simulation for this assertion pattern. Tap any bit (0/1) on the waveform to test alternate traffic:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SvaWaveformVisualizer(scenario = matchingWaveformScenario)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showWaveformDialog = false }) {
                     Text("Close")
                 }
             }

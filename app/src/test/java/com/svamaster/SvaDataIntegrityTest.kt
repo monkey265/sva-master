@@ -2,6 +2,8 @@ package com.svamaster
 
 import com.svamaster.data.SvaRepository
 import com.svamaster.model.SvaCategory
+import com.svamaster.model.SvaWaveformScenarios
+import com.svamaster.model.VerdictStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -112,6 +114,31 @@ class SvaDataIntegrityTest {
         assertTrue(protocolChallenges.any { it.prompt.contains("FIFO") })
         assertTrue(protocolChallenges.any { it.prompt.contains("Skid Buffer") })
         assertTrue(protocolChallenges.any { it.prompt.contains("Arbiter") })
+    }
+
+    @Test
+    fun testWaveformScenariosIntegrity() {
+        val scenarios = SvaWaveformScenarios.all
+        assertTrue("Must provide multiple waveform scenarios", scenarios.size >= 8)
+        val uniqueIds = mutableSetOf<String>()
+        for (sc in scenarios) {
+            assertTrue("Scenario ID must be unique: ${sc.id}", uniqueIds.add(sc.id))
+            assertFalse("Title must not be blank", sc.title.isBlank())
+            assertFalse("Assertion expr must not be blank", sc.assertionExpr.isBlank())
+            assertFalse("Description must not be blank", sc.description.isBlank())
+            assertTrue("Must have at least 2 signals", sc.signals.size >= 2)
+            assertTrue("Signals must have ${sc.numCycles} values", sc.signals.all { it.values.size == sc.numCycles })
+
+            // Test evaluation on default golden trace -> must PASS
+            val defaultSignalMap = sc.signals.associate { it.name to it.values }
+            val verdict = sc.evaluate(defaultSignalMap)
+            assertEquals("Default trace for ${sc.id} should PASS", VerdictStatus.PASS, verdict.status)
+
+            // Test evaluation on all zeros trace -> must evaluate cleanly
+            val allZerosMap = sc.signals.associate { it.name to List(sc.numCycles) { 0 } }
+            val zeroVerdict = sc.evaluate(allZerosMap)
+            assertTrue("All zeros trace should evaluate cleanly", zeroVerdict.title.isNotBlank())
+        }
     }
 
     private fun normalize(raw: String): String {
