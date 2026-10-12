@@ -99,7 +99,7 @@ fun ReferenceScreen(
                     label = { Text("All (${SvaRepository.items.size})") }
                 )
             }
-            items(SvaCategory.values()) { cat ->
+            items(SvaCategory.entries) { cat ->
                 val count = SvaRepository.items.count { it.category == cat }
                 FilterChip(
                     selected = selectedCategory == cat,

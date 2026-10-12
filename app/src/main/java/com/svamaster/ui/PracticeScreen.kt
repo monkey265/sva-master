@@ -43,11 +43,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -148,6 +150,9 @@ fun PracticeScreen() {
         targetDropIndex = -1
     }
 
+    val currentDragUpdate by rememberUpdatedState(onDragUpdate)
+    val currentDragFinish by rememberUpdatedState(onDragFinish)
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -171,7 +176,7 @@ fun PracticeScreen() {
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = "${currentChallengeIndex + 1}",
+                                    text = "${safeIndex + 1}",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -180,7 +185,7 @@ fun PracticeScreen() {
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Challenge ${currentChallengeIndex + 1} of ${allChallenges.size}",
+                            text = "Challenge ${safeIndex + 1} of ${allChallenges.size}",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -202,7 +207,7 @@ fun PracticeScreen() {
 
                 Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
-                    progress = { (currentChallengeIndex + 1).toFloat() / allChallenges.size.toFloat() },
+                    progress = { (safeIndex + 1).toFloat() / allChallenges.size.toFloat() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
@@ -397,178 +402,180 @@ fun PracticeScreen() {
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     selectedTokens.forEachIndexed { index, tokenPair ->
-                                        val isDragging = draggingToken?.first == tokenPair.first
-                                        val isDropTarget = targetDropIndex == index && draggingToken != null && !isDragging
+                                        key(tokenPair.first) {
+                                            val isDragging = draggingToken?.first == tokenPair.first
+                                            val isDropTarget = targetDropIndex == index && draggingToken != null && !isDragging
 
-                                        Surface(
-                                            shape = RoundedCornerShape(10.dp),
-                                            color = when {
-                                                isDragging -> MaterialTheme.colorScheme.primaryContainer
-                                                isDropTarget -> MaterialTheme.colorScheme.secondaryContainer
-                                                else -> MaterialTheme.colorScheme.primary
-                                            },
-                                            border = when {
-                                                isDragging -> BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-                                                isDropTarget -> BorderStroke(2.dp, MaterialTheme.colorScheme.secondary)
-                                                else -> null
-                                            },
-                                            shadowElevation = if (isDragging) 8.dp else 1.dp,
-                                            modifier = Modifier
-                                                .zIndex(if (isDragging) 10f else 1f)
-                                                .onGloballyPositioned { coords ->
-                                                    val parent = canvasCoordinates
-                                                    if (parent != null && coords.isAttached) {
-                                                        val topLeft = parent.localPositionOf(coords, Offset.Zero)
-                                                        tileCoordinates[tokenPair.first] = Rect(topLeft, coords.size.toSize())
-                                                    }
-                                                }
-                                                .graphicsLayer {
-                                                    if (isDragging) {
-                                                        translationX = dragOffset.x
-                                                        translationY = dragOffset.y
-                                                        scaleX = 1.08f
-                                                        scaleY = 1.08f
-                                                    }
-                                                }
-                                                .pointerInput(tokenPair.first) {
-                                                    detectDragGesturesAfterLongPress(
-                                                        onDragStart = {
-                                                            draggingToken = tokenPair
-                                                            dragOffset = Offset.Zero
-                                                            targetDropIndex = selectedTokens.indexOf(tokenPair)
-                                                        },
-                                                        onDrag = { change, dragAmount ->
-                                                            change.consume()
-                                                            onDragUpdate(tokenPair, dragAmount)
-                                                        },
-                                                        onDragEnd = onDragFinish,
-                                                        onDragCancel = {
-                                                            draggingToken = null
-                                                            dragOffset = Offset.Zero
-                                                            targetDropIndex = -1
+                                            Surface(
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = when {
+                                                    isDragging -> MaterialTheme.colorScheme.primaryContainer
+                                                    isDropTarget -> MaterialTheme.colorScheme.secondaryContainer
+                                                    else -> MaterialTheme.colorScheme.primary
+                                                },
+                                                border = when {
+                                                    isDragging -> BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                                                    isDropTarget -> BorderStroke(2.dp, MaterialTheme.colorScheme.secondary)
+                                                    else -> null
+                                                },
+                                                shadowElevation = if (isDragging) 8.dp else 1.dp,
+                                                modifier = Modifier
+                                                    .zIndex(if (isDragging) 10f else 1f)
+                                                    .onGloballyPositioned { coords ->
+                                                        val parent = canvasCoordinates
+                                                        if (parent != null && coords.isAttached) {
+                                                            val topLeft = parent.localPositionOf(coords, Offset.Zero)
+                                                            tileCoordinates[tokenPair.first] = Rect(topLeft, coords.size.toSize())
                                                         }
-                                                    )
-                                                }
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    }
+                                                    .graphicsLayer {
+                                                        if (isDragging) {
+                                                            translationX = dragOffset.x
+                                                            translationY = dragOffset.y
+                                                            scaleX = 1.08f
+                                                            scaleY = 1.08f
+                                                        }
+                                                    }
+                                                    .pointerInput(tokenPair.first) {
+                                                        detectDragGesturesAfterLongPress(
+                                                            onDragStart = {
+                                                                draggingToken = tokenPair
+                                                                dragOffset = Offset.Zero
+                                                                targetDropIndex = selectedTokens.indexOf(tokenPair)
+                                                            },
+                                                            onDrag = { change, dragAmount ->
+                                                                change.consume()
+                                                                currentDragUpdate(tokenPair, dragAmount)
+                                                            },
+                                                            onDragEnd = { currentDragFinish() },
+                                                            onDragCancel = {
+                                                                draggingToken = null
+                                                                dragOffset = Offset.Zero
+                                                                targetDropIndex = -1
+                                                            }
+                                                        )
+                                                    }
                                             ) {
-                                                // Draggable handle with immediate gesture detection
-                                                Box(
-                                                    modifier = Modifier
-                                                        .pointerInput(tokenPair.first) {
-                                                            detectDragGestures(
-                                                                onDragStart = {
-                                                                    draggingToken = tokenPair
-                                                                    dragOffset = Offset.Zero
-                                                                    targetDropIndex = selectedTokens.indexOf(tokenPair)
-                                                                },
-                                                                onDrag = { change, dragAmount ->
-                                                                    change.consume()
-                                                                    onDragUpdate(tokenPair, dragAmount)
-                                                                },
-                                                                onDragEnd = onDragFinish,
-                                                                onDragCancel = {
-                                                                    draggingToken = null
-                                                                    dragOffset = Offset.Zero
-                                                                    targetDropIndex = -1
-                                                                }
-                                                            )
-                                                        }
-                                                        .padding(end = 2.dp)
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                                 ) {
+                                                    // Draggable handle with immediate gesture detection
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .pointerInput(tokenPair.first) {
+                                                                detectDragGestures(
+                                                                    onDragStart = {
+                                                                        draggingToken = tokenPair
+                                                                        dragOffset = Offset.Zero
+                                                                        targetDropIndex = selectedTokens.indexOf(tokenPair)
+                                                                    },
+                                                                    onDrag = { change, dragAmount ->
+                                                                        change.consume()
+                                                                        currentDragUpdate(tokenPair, dragAmount)
+                                                                    },
+                                                                    onDragEnd = { currentDragFinish() },
+                                                                    onDragCancel = {
+                                                                        draggingToken = null
+                                                                        dragOffset = Offset.Zero
+                                                                        targetDropIndex = -1
+                                                                    }
+                                                                )
+                                                            }
+                                                            .padding(end = 2.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "⠿",
+                                                            fontSize = 12.sp,
+                                                            color = if (isDragging || isDropTarget) {
+                                                                MaterialTheme.colorScheme.onPrimaryContainer
+                                                            } else {
+                                                                MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
+                                                            }
+                                                        )
+                                                    }
+
                                                     Text(
-                                                        text = "⠿",
-                                                        fontSize = 12.sp,
-                                                        color = if (isDragging || isDropTarget) {
-                                                            MaterialTheme.colorScheme.onPrimaryContainer
-                                                        } else {
-                                                            MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
+                                                        text = tokenPair.second,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = when {
+                                                            isDragging -> MaterialTheme.colorScheme.onPrimaryContainer
+                                                            isDropTarget -> MaterialTheme.colorScheme.onSecondaryContainer
+                                                            else -> MaterialTheme.colorScheme.onPrimary
                                                         }
                                                     )
-                                                }
 
-                                                Text(
-                                                    text = tokenPair.second,
-                                                    fontFamily = FontFamily.Monospace,
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = when {
-                                                        isDragging -> MaterialTheme.colorScheme.onPrimaryContainer
-                                                        isDropTarget -> MaterialTheme.colorScheme.onSecondaryContainer
-                                                        else -> MaterialTheme.colorScheme.onPrimary
-                                                    }
-                                                )
-
-                                                if (selectedTokens.size > 1) {
-                                                    if (index > 0) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .clickable {
-                                                                    val item = selectedTokens.removeAt(index)
-                                                                    selectedTokens.add(index - 1, item)
-                                                                    checkVerdict = null
-                                                                }
-                                                                .padding(horizontal = 2.dp)
-                                                        ) {
-                                                            Text(
-                                                                text = "◀",
-                                                                fontSize = 10.sp,
-                                                                color = if (isDragging || isDropTarget) {
-                                                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                                                } else {
-                                                                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
-                                                                }
-                                                            )
-                                                        }
-                                                    }
-                                                    if (index < selectedTokens.lastIndex) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .clickable {
-                                                                    val item = selectedTokens.removeAt(index)
-                                                                    selectedTokens.add(index + 1, item)
-                                                                    checkVerdict = null
-                                                                }
-                                                                .padding(horizontal = 2.dp)
-                                                        ) {
-                                                            Text(
-                                                                text = "▶",
-                                                                fontSize = 10.sp,
-                                                                color = if (isDragging || isDropTarget) {
-                                                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                                                } else {
-                                                                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
-                                                                }
-                                                            )
-                                                        }
-                                                    }
-                                                }
-
-                                                Box(
-                                                    modifier = Modifier
-                                                        .clickable {
-                                                            if (checkVerdict != true) {
-                                                                selectedTokens.remove(tokenPair)
-                                                                poolTokens.add(tokenPair)
-                                                                tileCoordinates.remove(tokenPair.first)
-                                                                checkVerdict = null
+                                                    if (selectedTokens.size > 1) {
+                                                        if (index > 0) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .clickable {
+                                                                        val item = selectedTokens.removeAt(index)
+                                                                        selectedTokens.add(index - 1, item)
+                                                                        checkVerdict = null
+                                                                    }
+                                                                    .padding(horizontal = 2.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = "◀",
+                                                                    fontSize = 10.sp,
+                                                                    color = if (isDragging || isDropTarget) {
+                                                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                                                    } else {
+                                                                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
+                                                                    }
+                                                                )
                                                             }
                                                         }
-                                                        .padding(start = 2.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "✕",
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = if (isDragging || isDropTarget) {
-                                                            MaterialTheme.colorScheme.onPrimaryContainer
-                                                        } else {
-                                                            MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                                        if (index < selectedTokens.lastIndex) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .clickable {
+                                                                        val item = selectedTokens.removeAt(index)
+                                                                        selectedTokens.add(index + 1, item)
+                                                                        checkVerdict = null
+                                                                    }
+                                                                    .padding(horizontal = 2.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = "▶",
+                                                                    fontSize = 10.sp,
+                                                                    color = if (isDragging || isDropTarget) {
+                                                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                                                    } else {
+                                                                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
+                                                                    }
+                                                                )
+                                                            }
                                                         }
-                                                    )
+                                                    }
+
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clickable {
+                                                                if (checkVerdict != true) {
+                                                                    selectedTokens.remove(tokenPair)
+                                                                    poolTokens.add(tokenPair)
+                                                                    tileCoordinates.remove(tokenPair.first)
+                                                                    checkVerdict = null
+                                                                }
+                                                            }
+                                                            .padding(start = 2.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "✕",
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (isDragging || isDropTarget) {
+                                                                MaterialTheme.colorScheme.onPrimaryContainer
+                                                            } else {
+                                                                MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                                            }
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -590,26 +597,28 @@ fun PracticeScreen() {
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         poolTokens.forEach { tokenPair ->
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant),
-                                modifier = Modifier.clickable {
-                                    if (checkVerdict != true) {
-                                        poolTokens.remove(tokenPair)
-                                        selectedTokens.add(tokenPair)
-                                        checkVerdict = null
+                            key(tokenPair.first) {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant),
+                                    modifier = Modifier.clickable {
+                                        if (checkVerdict != true) {
+                                            poolTokens.remove(tokenPair)
+                                            selectedTokens.add(tokenPair)
+                                            checkVerdict = null
+                                        }
                                     }
+                                ) {
+                                    Text(
+                                        text = tokenPair.second,
+                                        fontFamily = FontFamily.Monospace,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                    )
                                 }
-                            ) {
-                                Text(
-                                    text = tokenPair.second,
-                                    fontFamily = FontFamily.Monospace,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                                )
                             }
                         }
                     }
@@ -682,21 +691,21 @@ fun PracticeScreen() {
             }
         }
 
-        // Action Buttons (Verify Answer, Hint, Next)
+        // Action Buttons (Verify Answer, Hint, Prev, Next)
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(
-                    onClick = { showHint = !showHint },
-                    shape = RoundedCornerShape(12.dp)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(if (showHint) "Hide Hint" else "💡 Hint")
-                }
+                    OutlinedButton(
+                        onClick = { showHint = !showHint },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(if (showHint) "Hide Hint" else "💡 Hint")
+                    }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = {
                             val userAssembly = if (inputMode == PracticeInputMode.TYPE_SYNTAX) {
@@ -719,6 +728,28 @@ fun PracticeScreen() {
                     ) {
                         Text("Verify SVA")
                     }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val prevIndex = if (safeIndex > 0) safeIndex - 1 else allChallenges.size - 1
+                            progressManager.setCurrentChallengeIndex(prevIndex)
+                            typedCode = ""
+                            checkVerdict = null
+                            showHint = false
+                            draggingToken = null
+                            dragOffset = Offset.Zero
+                            targetDropIndex = -1
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("← Prev")
+                    }
 
                     Button(
                         onClick = {
@@ -731,7 +762,11 @@ fun PracticeScreen() {
                             typedCode = ""
                             checkVerdict = null
                             showHint = false
+                            draggingToken = null
+                            dragOffset = Offset.Zero
+                            targetDropIndex = -1
                         },
+                        modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.secondary
@@ -750,4 +785,5 @@ fun normalizeSva(raw: String): String {
         .replace("1'b0", "0")
         .replace("1'b1", "1")
         .trim()
+        .trimEnd(';')
 }

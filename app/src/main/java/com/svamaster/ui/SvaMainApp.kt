@@ -69,7 +69,7 @@ fun SvaMainApp() {
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface
                 ) {
-                    SvaNavigationTab.values().forEach { tab ->
+                    SvaNavigationTab.entries.forEach { tab ->
                         NavigationBarItem(
                             selected = currentTab == tab,
                             onClick = { currentTab = tab },

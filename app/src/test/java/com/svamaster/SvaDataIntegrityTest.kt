@@ -13,7 +13,7 @@ class SvaDataIntegrityTest {
     @Test
     fun testRepositoryHasAllCategoriesRepresented() {
         val categoriesWithItems = SvaRepository.items.map { it.category }.toSet()
-        for (category in SvaCategory.values()) {
+        for (category in SvaCategory.entries) {
             assertTrue("Category $category should have items", categoriesWithItems.contains(category))
         }
     }
@@ -68,13 +68,31 @@ class SvaDataIntegrityTest {
             assertTrue("Tokens must not be empty", chal.tokens.isNotEmpty())
             assertTrue("Acceptable answers must include target", chal.acceptableAnswers.isNotEmpty())
             assertFalse("Explanation must not be blank", chal.explanation.isBlank())
+
+            // Verify that the tokens can indeed assemble into an acceptable answer
+            val tokenAssembly = chal.tokens.joinToString(" ")
+            val normalizedTokens = normalize(tokenAssembly)
+            val matchesAny = chal.acceptableAnswers.any { normalize(it) == normalizedTokens }
+            assertTrue(
+                "Challenge ${chal.id} tokens ['$tokenAssembly'] cannot assemble into any acceptable answer: ${chal.acceptableAnswers}",
+                matchesAny
+            )
         }
 
         // Test user's specific property p_valid_hold
         val validHoldChal = challenges.find { it.targetSva.contains("valid && !ready") && it.targetSva.contains("\$stable(data)") }
         assertNotNull("Must contain property p_valid_hold challenge", validHoldChal)
-        assertTrue(validHoldChal!!.fullPropertyDefinition!!.contains("property p_valid_hold;"))
-        assertTrue(validHoldChal.fullPropertyDefinition!!.contains("(valid && !ready) |=> (valid && \$stable(data));"))
+        val fullDef = validHoldChal!!.fullPropertyDefinition
+        assertNotNull(fullDef)
+        assertTrue(fullDef!!.contains("property p_valid_hold;"))
+        assertTrue(fullDef.contains("(valid && !ready) |=> (valid && \$stable(data));"))
         assertTrue(validHoldChal.assertionDirective!!.contains("assert property (p_valid_hold);"))
+    }
+
+    private fun normalize(raw: String): String {
+        return raw.replace("\\s+".toRegex(), "")
+            .replace("1'b0", "0")
+            .replace("1'b1", "1")
+            .trim()
     }
 }

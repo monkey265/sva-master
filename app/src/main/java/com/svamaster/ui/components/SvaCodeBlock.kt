@@ -51,21 +51,25 @@ fun SvaCodeBlock(
     }
 }
 
+private val DELIMITER_CHARS = charArrayOf(' ', '(', ';')
+
+private val SVA_KEYWORDS = setOf(
+    "assert", "property", "endproperty", "cover", "assume", "restrict",
+    "sequence", "endsequence", "disable", "iff", "posedge", "negedge",
+    "default", "clocking", "endclocking", "always", "s_eventually", "until",
+    "s_until", "until_with", "s_until_with", "nexttime", "s_nexttime",
+    "accept_on", "reject_on", "sync_accept_on", "sync_reject_on",
+    "and", "or", "not", "implies", "inside", "if", "else", "first_match",
+    "throughout", "within", "input", "output", "intersect"
+)
+
+private val SVA_SYS_FUNCTIONS = setOf(
+    "\$past", "\$rose", "\$fell", "\$stable", "\$changed",
+    "\$isunknown", "\$onehot", "\$onehot0", "\$countones", "\$error", "\$fatal"
+)
+
 fun highlightSvaSyntax(code: String) = buildAnnotatedString {
     val lines = code.lines()
-    val keywords = setOf(
-        "assert", "property", "endproperty", "cover", "assume", "restrict",
-        "sequence", "endsequence", "disable", "iff", "posedge", "negedge",
-        "default", "clocking", "endclocking", "always", "s_eventually", "until",
-        "s_until", "until_with", "s_until_with", "nexttime", "s_nexttime",
-        "accept_on", "reject_on", "sync_accept_on", "sync_reject_on",
-        "and", "or", "not", "implies", "inside", "if", "else", "first_match",
-        "throughout", "within", "input", "output"
-    )
-    val sysFunctions = setOf(
-        "\$past", "\$rose", "\$fell", "\$stable", "\$changed",
-        "\$isunknown", "\$onehot", "\$onehot0", "\$countones", "\$error", "\$fatal"
-    )
 
     lines.forEachIndexed { lineIdx, line ->
         if (line.trim().startsWith("//") || line.trim().startsWith("`ifdef") || line.trim().startsWith("`endif")) {
@@ -76,7 +80,7 @@ fun highlightSvaSyntax(code: String) = buildAnnotatedString {
             var i = 0
             while (i < line.length) {
                 if (line.startsWith("`uvm_", i)) {
-                    val end = line.indexOfAny(charArrayOf(' ', '(', ';'), i).let { if (it == -1) line.length else it }
+                    val end = line.indexOfAny(DELIMITER_CHARS, i).let { if (it == -1) line.length else it }
                     withStyle(SpanStyle(color = CodeFunction, fontWeight = FontWeight.Bold)) {
                         append(line.substring(i, end))
                     }
@@ -101,12 +105,12 @@ fun highlightSvaSyntax(code: String) = buildAnnotatedString {
                     }
                     val word = line.substring(i, end)
                     when {
-                        keywords.contains(word) -> {
+                        SVA_KEYWORDS.contains(word) -> {
                             withStyle(SpanStyle(color = CodeKeyword, fontWeight = FontWeight.Bold)) {
                                 append(word)
                             }
                         }
-                        sysFunctions.contains(word) -> {
+                        SVA_SYS_FUNCTIONS.contains(word) -> {
                             withStyle(SpanStyle(color = CodeFunction, fontWeight = FontWeight.Bold)) {
                                 append(word)
                             }

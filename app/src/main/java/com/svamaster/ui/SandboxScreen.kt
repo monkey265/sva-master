@@ -1,6 +1,8 @@
 package com.svamaster.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.svamaster.data.SvaRepository
 import com.svamaster.ui.components.SvaCodeBlock
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +51,7 @@ fun SandboxScreen() {
     var expandedDropdown by remember { mutableStateOf(false) }
     var isSimulating by remember { mutableStateOf(false) }
     var hasRun by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     val currentSample = samples[selectedIndex]
 
@@ -140,12 +146,18 @@ fun SandboxScreen() {
                     Spacer(modifier = Modifier.height(14.dp))
                     Button(
                         onClick = {
-                            hasRun = true
+                            coroutineScope.launch {
+                                isSimulating = true
+                                delay(300)
+                                isSimulating = false
+                                hasRun = true
+                            }
                         },
+                        enabled = !isSimulating,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("▶ Simulate & Verify Pattern")
+                        Text(if (isSimulating) "⚡ Simulating Assertion Trace..." else "▶ Simulate & Verify Pattern")
                     }
                 }
             }
@@ -156,8 +168,9 @@ fun SandboxScreen() {
                 Card(
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF1B2F23)
-                    )
+                        containerColor = Color(0xFF2E7D32).copy(alpha = 0.15f)
+                    ),
+                    border = BorderStroke(1.5.dp, Color(0xFF4CAF50))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -179,13 +192,13 @@ fun SandboxScreen() {
                             text = currentSample.testVerdict,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFA5D6A7)
+                            color = if (isSystemInDarkTheme()) Color(0xFFA5D6A7) else Color(0xFF1B5E20)
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = currentSample.explanation,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFE8F5E9),
+                            color = MaterialTheme.colorScheme.onSurface,
                             lineHeight = 18.sp
                         )
                     }

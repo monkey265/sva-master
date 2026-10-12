@@ -24,6 +24,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -33,23 +34,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.svamaster.data.SvaProgressManager
 import com.svamaster.data.SvaRepository
 import com.svamaster.model.SvaQuizQuestion
 import com.svamaster.ui.components.SvaCodeBlock
 
 @Composable
 fun QuizScreen() {
+    val context = LocalContext.current
+    val progressManager = remember(context) { SvaProgressManager.getInstance(context) }
     val questions = remember { SvaRepository.quizQuestions }
-    var currentIndex by remember { mutableIntStateOf(0) }
+    val persistedIndex by progressManager.quizIndex.collectAsState()
+    val persistedScore by progressManager.quizScore.collectAsState()
+    val safeIndex = persistedIndex.coerceIn(0, questions.lastIndex)
+
     var selectedOption by remember { mutableStateOf<Int?>(null) }
     var isSubmitted by remember { mutableStateOf(false) }
-    var score by remember { mutableIntStateOf(0) }
-    var isCompleted by remember { mutableStateOf(false) }
+    var isCompleted by remember { mutableStateOf(persistedIndex >= questions.size) }
 
-    val currentQuestion = questions[currentIndex]
+    val currentQuestion = questions[safeIndex]
 
     LazyColumn(
         modifier = Modifier
@@ -61,13 +68,12 @@ fun QuizScreen() {
         if (isCompleted) {
             item {
                 QuizCompletionCard(
-                    score = score,
+                    score = persistedScore,
                     total = questions.size,
                     onRestart = {
-                        currentIndex = 0
+                        progressManager.resetQuiz()
                         selectedOption = null
                         isSubmitted = false
-                        score = 0
                         isCompleted = false
                     }
                 )
@@ -81,13 +87,13 @@ fun QuizScreen() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Question ${currentIndex + 1} of ${questions.size}",
+                            text = "Question ${safeIndex + 1} of ${questions.size}",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = "Score: $score",
+                            text = "Score: $persistedScore",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.secondary
@@ -95,7 +101,7 @@ fun QuizScreen() {
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     LinearProgressIndicator(
-                        progress = { (currentIndex + 1).toFloat() / questions.size.toFloat() },
+                        progress = { (safeIndex + 1).toFloat() / questions.size.toFloat() },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(8.dp)
@@ -234,7 +240,7 @@ fun QuizScreen() {
                                 if (selectedOption != null) {
                                     isSubmitted = true
                                     if (selectedOption == currentQuestion.correctIndex) {
-                                        score++
+                                        progressManager.setQuizProgress(safeIndex, persistedScore + 1)
                                     }
                                 }
                             },
@@ -246,8 +252,8 @@ fun QuizScreen() {
                     } else {
                         Button(
                             onClick = {
-                                if (currentIndex < questions.size - 1) {
-                                    currentIndex++
+                                if (safeIndex < questions.size - 1) {
+                                    progressManager.setQuizProgress(safeIndex + 1, persistedScore)
                                     selectedOption = null
                                     isSubmitted = false
                                 } else {
@@ -256,7 +262,7 @@ fun QuizScreen() {
                             },
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text(if (currentIndex < questions.size - 1) "Next Question →" else "View Results")
+                            Text(if (safeIndex < questions.size - 1) "Next Question →" else "View Results")
                         }
                     }
                 }
